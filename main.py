@@ -11,6 +11,7 @@ from typing import Optional, List
 
 import numpy as np
 import pandas as pd
+from dotenv import load_dotenv
 from fastapi import (
     FastAPI, Header, HTTPException, Depends, UploadFile, File, Query,
 )
@@ -19,6 +20,10 @@ from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from jose import jwt, JWTError
 from pydantic import BaseModel
+
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
+load_dotenv(os.path.join(PROJECT_ROOT, "SQL GPT", ".env"))
 
 from auth_db import (
     init_db, verify_user, create_user, list_users, toggle_user_active,
@@ -43,10 +48,6 @@ import sys as _sys
 _sql_gpt_backend = os.path.join(os.path.dirname(os.path.abspath(__file__)), "SQL GPT", "backend")
 _sys.path.append(_sql_gpt_backend)
 
-# Load SQL GPT .env (for OPENAI_API_KEY)
-from dotenv import load_dotenv as _load_dotenv
-_load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), "SQL GPT", ".env"))
-
 from api.upload import router as _sql_gpt_upload_router
 from api.query import router as _sql_gpt_query_router
 from api.download import router as _sql_gpt_download_router
@@ -66,8 +67,17 @@ app.add_middleware(
 
 # ── JWT configuration ────────────────────────────────────────────────────────
 
-JWT_SECRET = os.environ.get("AIM_JWT_SECRET", "aim-dashboard-secret-key-2024")
-if JWT_SECRET == "aim-dashboard-secret-key-2024":
+JWT_SECRET = os.environ.get("AIM_JWT_SECRET")
+_is_production = (
+    os.environ.get("AIM_ENV", "").lower() == "production"
+    or os.environ.get("RENDER") is not None
+)
+if not JWT_SECRET and _is_production:
+    raise RuntimeError(
+        "AIM_JWT_SECRET must be set in production before the app can start."
+    )
+if not JWT_SECRET:
+    JWT_SECRET = "aim-dashboard-local-development-secret"
     import warnings
     warnings.warn("AIM_JWT_SECRET not set — using insecure default. Set the environment variable for production.", stacklevel=1)
 JWT_ALGORITHM = "HS256"
@@ -76,6 +86,12 @@ JWT_EXPIRY_HOURS = 24
 # ── In-memory data store ─────────────────────────────────────────────────────
 
 _user_data: dict = {}  # keyed by user_id
+
+
+@app.get("/health", tags=["System"])
+def health_check():
+    """Lightweight endpoint used by Render health checks."""
+    return {"status": "healthy", "service": "aim-dashboard"}
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -1419,8 +1435,14 @@ def rules_list():
 def on_startup():
     init_db()
     # Ensure SQL GPT directories exist
-    os.makedirs("backend/databases", exist_ok=True)
-    os.makedirs("backend/uploads", exist_ok=True)
+    os.makedirs(
+        os.path.abspath(os.environ.get("SQL_GPT_DB_DIR", "backend/databases")),
+        exist_ok=True,
+    )
+    os.makedirs(
+        os.path.abspath(os.environ.get("SQL_GPT_UPLOAD_DIR", "backend/uploads")),
+        exist_ok=True,
+    )
     # Auto-open browser locally only; skip on hosted/production environments.
     if os.environ.get("RENDER") is None and os.environ.get("PORT") is None:
         import threading, webbrowser

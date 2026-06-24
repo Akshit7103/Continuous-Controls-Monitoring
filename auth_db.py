@@ -8,10 +8,17 @@ import os
 import json
 import hashlib
 import secrets
+import warnings
 from datetime import datetime
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "aim_workflow.db")
-UPLOADS_DIR = os.path.join(os.path.dirname(__file__), "uploads")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.abspath(os.environ.get("AIM_DATA_DIR", BASE_DIR))
+DB_PATH = os.path.abspath(
+    os.environ.get("AIM_DB_PATH", os.path.join(DATA_DIR, "aim_workflow.db"))
+)
+UPLOADS_DIR = os.path.abspath(
+    os.environ.get("AIM_UPLOADS_DIR", os.path.join(DATA_DIR, "uploads"))
+)
 
 
 def _get_conn():
@@ -32,6 +39,7 @@ def _hash_password(password: str, salt: str = None) -> tuple[str, str]:
 
 def init_db():
     """Initialize database tables and seed default admin. Safe to call repeatedly."""
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     os.makedirs(UPLOADS_DIR, exist_ok=True)
 
     conn = _get_conn()
@@ -102,18 +110,52 @@ def init_db():
             ON custom_rules(scenario_name, is_active);
     """)
 
-    # Seed default admin user if not exists
+    admin_username = os.environ.get("AIM_ADMIN_USERNAME", "admin").strip() or "admin"
+    admin_display_name = (
+        os.environ.get("AIM_ADMIN_DISPLAY_NAME", "Administrator").strip()
+        or "Administrator"
+    )
+    admin_password = os.environ.get("AIM_ADMIN_PASSWORD")
+    is_production = (
+        os.environ.get("AIM_ENV", "").lower() == "production"
+        or os.environ.get("RENDER") is not None
+    )
+
+    if not admin_password:
+        if is_production:
+            conn.close()
+            raise RuntimeError(
+                "AIM_ADMIN_PASSWORD must be set in production before the app can start."
+            )
+        admin_password = "admin"
+        warnings.warn(
+            "AIM_ADMIN_PASSWORD is not set; using the local-development password "
+            "'admin'. Never use this fallback in production.",
+            stacklevel=1,
+        )
+
+    # Seed the administrator or rotate its password to the configured secret.
     existing = cursor.execute(
-        "SELECT id FROM users WHERE username = ?", ("admin",)
+        "SELECT id, password_hash, password_salt FROM users WHERE username = ?",
+        (admin_username,),
     ).fetchone()
 
     if not existing:
-        pw_hash, pw_salt = _hash_password("82461937Cr7@")
+        pw_hash, pw_salt = _hash_password(admin_password)
         cursor.execute(
             "INSERT INTO users (username, password_hash, password_salt, display_name, role) "
             "VALUES (?, ?, ?, ?, ?)",
-            ("admin", pw_hash, pw_salt, "Administrator", "admin"),
+            (admin_username, pw_hash, pw_salt, admin_display_name, "admin"),
         )
+    else:
+        configured_hash, _ = _hash_password(admin_password, existing["password_salt"])
+        if configured_hash != existing["password_hash"]:
+            pw_hash, pw_salt = _hash_password(admin_password)
+            cursor.execute(
+                "UPDATE users SET password_hash = ?, password_salt = ?, "
+                "display_name = ?, role = 'admin', is_active = 1 WHERE id = ?",
+                (pw_hash, pw_salt, admin_display_name, existing["id"]),
+            )
 
     conn.commit()
     conn.close()

@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: aim-continuous-controls-monitoring
+    runtime: python
+    plan: free
+    region: singapore
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: AIM_ENV
+        value: production
+      - key: AIM_JWT_SECRET
+        generateValue: true
+      - key: AIM_ADMIN_USERNAME
+        value: admin
+      - key: AIM_ADMIN_PASSWORD
+        sync: false
+      - key: AIM_ADMIN_DISPLAY_NAME
+        value: Administrator
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: AIM_DATA_DIR
+        value: /var/data/aim
+      - key: SQL_GPT_DB_DIR
+        value: /var/data/sql-gpt/databases
+      - key: SQL_GPT_UPLOAD_DIR
+        value: /var/data/sql-gpt/uploads

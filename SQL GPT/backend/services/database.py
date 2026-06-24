@@ -9,10 +9,12 @@ import json
 class DatabaseService:
     """Service for SQLite database operations"""
 
-    def __init__(self, db_dir: str = "backend/databases"):
-        self.db_dir = db_dir
-        os.makedirs(db_dir, exist_ok=True)
-        self.db_path = os.path.join(db_dir, "analytics_gpt.db")
+    def __init__(self, db_dir: str = None):
+        self.db_dir = os.path.abspath(
+            db_dir or os.environ.get("SQL_GPT_DB_DIR", "backend/databases")
+        )
+        os.makedirs(self.db_dir, exist_ok=True)
+        self.db_path = os.path.join(self.db_dir, "analytics_gpt.db")
         self._init_metadata_table()
 
     def _init_metadata_table(self):

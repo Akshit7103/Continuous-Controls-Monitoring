@@ -37,7 +37,10 @@ async def upload_file(file: UploadFile = File(...)):
             table_name = f"{table_name}_{uuid.uuid4().hex[:6]}"
 
         # Save and parse file
-        save_path = os.path.join("backend/uploads", f"{uuid.uuid4().hex}_{file.filename}")
+        upload_dir = os.path.abspath(
+            os.environ.get("SQL_GPT_UPLOAD_DIR", "backend/uploads")
+        )
+        save_path = os.path.join(upload_dir, f"{uuid.uuid4().hex}_{file.filename}")
         df = await file_parser.parse_file(file, save_path)
 
         # Create table in database
