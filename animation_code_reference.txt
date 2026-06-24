@@ -1,0 +1,199 @@
+Animation code reference for AIM login hero
+Source files:
+- static/js/app.js
+- static/css/style.css
+
+==================================================
+1. Markup rendered for the animated header items
+File: static/js/app.js
+==================================================
+522:                    <div class="login-mini-trend" aria-hidden="true">
+523:                        <span class="login-graph-hero">
+524:                            <span class="bar"></span>
+525:                            <span class="bar"></span>
+526:                            <span class="bar"></span>
+527:                            <span class="bar"></span>
+528:                            <span class="bar"></span>
+529:                        </span>
+530:                        <svg class="login-sparkline" viewBox="0 0 64 20" preserveAspectRatio="none" aria-hidden="true">
+531:                            <path class="spark-bg" d="M0 15 L8 12 L16 14 L24 8 L32 10 L40 6 L48 9 L56 5 L64 7" />
+532:                            <path class="spark-path" d="M0 15 L8 12 L16 14 L24 8 L32 10 L40 6 L48 9 L56 5 L64 7" />
+533:                        </svg>
+534:                        <div class="login-pie2" aria-hidden="true"></div>
+535:                    </div>
+
+==================================================
+2. Animation startup
+File: static/js/app.js
+==================================================
+591:        // Start left-hero sequential bar animation
+592:        try { if (S.loginAnimStop) { S.loginAnimStop(); } } catch (e) {}
+593:        S.loginAnimStop = startLoginHeroAnim(wrapper);
+
+==================================================
+3. Main animation function
+File: static/js/app.js
+==================================================
+676:    // Small, looped animation: bars appear one-by-one, line up, then reset
+677:    function startLoginHeroAnim(container) {
+678:        const bars = container.querySelectorAll('.login-graph-hero .bar');
+679:        if (!bars.length) return null;
+680:        const targets = [0.45, 0.65, 0.9, 0.55, 0.8];
+681:        const lineup = 0.85;
+682:        bars.forEach(function (b) { b.style.transform = 'scaleY(0)'; });
+683:        let cancelled = false;
+684:        const tids = [];
+
+686:        function loop() {
+687:            if (cancelled) return;
+688:            let i = 0;
+689:            function growNext() {
+690:                if (cancelled) return;
+691:                if (i < bars.length) {
+692:                    const h = targets[i] || 0.8;
+693:                    bars[i].style.transform = 'scaleY(' + h + ')';
+694:                    i += 1;
+695:                    tids.push(setTimeout(growNext, 180));
+696:                } else {
+697:                    tids.push(setTimeout(function () {
+698:                        bars.forEach(function (b) { b.style.transform = 'scaleY(' + lineup + ')'; });
+699:                        tids.push(setTimeout(function () {
+700:                            bars.forEach(function (b) { b.style.transform = 'scaleY(0)'; });
+701:                            tids.push(setTimeout(loop, 600));
+702:                        }, 650));
+703:                    }, 500));
+704:                }
+705:            }
+706:            growNext();
+707:        }
+708:        loop();
+
+709:        // Sparkline animation (stroke-dashoffset draw/reset)
+710:        (function () {
+711:            const path = container.querySelector('.login-sparkline .spark-path');
+712:            if (!path) return;
+713:            const len = typeof path.getTotalLength === 'function' ? path.getTotalLength() : 200;
+714:            path.style.strokeDasharray = String(len);
+715:            function sparkLoop() {
+716:                if (cancelled) return;
+717:                // Reset instantly to hidden
+718:                path.style.transition = 'none';
+719:                path.style.strokeDashoffset = String(len);
+720:                // Force reflow
+721:                try { path.getBoundingClientRect(); } catch (e) {}
+722:                // Animate to full draw
+723:                path.style.transition = 'stroke-dashoffset 1200ms ease-in-out';
+724:                path.style.strokeDashoffset = '0';
+725:                tids.push(setTimeout(function () {
+726:                    if (cancelled) return; sparkLoop();
+727:                }, 1500));
+728:            }
+729:            sparkLoop();
+730:        })();
+
+732:        // Pie animation (solid pie filling with partitions using conic-gradient)
+733:        (function () {
+734:            const pie = container.querySelector('.login-pie2');
+735:            if (!pie) return;
+736:            const colors = ['#FFD2A6', '#9DD3FF', '#FFB4C2', '#A7F3D0'];
+737:            const parts = [0.25, 0.30, 0.20, 0.25]; // fractions total 1.0
+738:            function buildGradient(progressIndex, progressFrac) {
+739:                let ang = 0;
+740:                const segs = [];
+741:                for (let i = 0; i < parts.length; i++) {
+742:                    const size = parts[i] * 360;
+743:                    if (i < progressIndex) {
+744:                        segs.push(`${colors[i]} ${ang}deg ${ang + size}deg`);
+745:                        ang += size;
+746:                    } else if (i === progressIndex) {
+747:                        const cur = size * progressFrac;
+748:                        segs.push(`${colors[i]} ${ang}deg ${ang + cur}deg`);
+749:                        ang += cur;
+750:                        segs.push(`rgba(255,255,255,0.18) ${ang}deg 360deg`);
+751:                        break;
+752:                    } else {
+753:                        // not started yet
+754:                        segs.push(`rgba(255,255,255,0.18) ${ang}deg 360deg`);
+755:                        break;
+756:                    }
+757:                }
+758:                return 'conic-gradient(' + segs.join(',') + ')';
+759:            }
+760:            function pieLoop() {
+761:                if (cancelled) return;
+762:                let idx = 0;
+763:                function animateSlice() {
+764:                    if (cancelled) return;
+765:                    if (idx >= parts.length) {
+766:                        tids.push(setTimeout(function () {
+767:                            // reset
+768:                            pie.style.background = 'conic-gradient(rgba(255,255,255,0.18) 0 360deg)';
+769:                            tids.push(setTimeout(pieLoop, 600));
+770:                        }, 600));
+771:                        return;
+772:                    }
+773:                    const steps = 14;
+774:                    let s = 0;
+775:                    function step() {
+776:                        if (cancelled) return;
+777:                        const frac = Math.min(1, s / steps);
+778:                        pie.style.background = buildGradient(idx, frac);
+779:                        s += 1;
+780:                        if (s <= steps) {
+781:                            tids.push(setTimeout(step, 40));
+782:                        } else {
+783:                            // lock slice as filled and move to next
+784:                            idx += 1;
+785:                            tids.push(setTimeout(animateSlice, 120));
+786:                        }
+787:                    }
+788:                    step();
+789:                }
+790:                animateSlice();
+791:            }
+792:            pieLoop();
+793:        })();
+
+795:        return function stop() { cancelled = true; tids.forEach(function (id) { try { clearTimeout(id); } catch (e) {} }); };
+796:    }
+
+==================================================
+4. CSS for the bars and sparkline
+File: static/css/style.css
+==================================================
+587:.login-mini-trend { display: inline-flex; align-items: center; gap: 12px; margin: 0.25rem 0 1.25rem 0; }
+588:.login-graph-hero { display: inline-flex; align-items: flex-end; gap: 4px; height: 20px; }
+589:.login-graph-hero .bar {
+590:    width: 4px;
+591:    height: 45%;
+592:    background: #FFD2A6; /* lighter for dark bg */
+593:    border-radius: 2px;
+594:    box-shadow: 0 0 10px rgba(229, 114, 0, 0.45);
+595:    transform-origin: bottom center;
+596:    will-change: transform;
+597:    transition: transform 320ms ease-in-out;
+598:}
+599:.login-graph-hero .bar:nth-child(2) { height: 65%; background: #9DD3FF; box-shadow: 0 0 10px rgba(89, 152, 197, 0.45); animation-delay: .1s; }
+600:.login-graph-hero .bar:nth-child(3) { height: 90%; animation-delay: .2s; }
+601:.login-graph-hero .bar:nth-child(4) { height: 55%; background: #9DD3FF; box-shadow: 0 0 10px rgba(89,152,197,0.45); animation-delay: .3s; }
+602:.login-graph-hero .bar:nth-child(5) { height: 80%; animation-delay: .4s; }
+
+606:/* Mini sparkline (line chart) */
+607:.login-sparkline { width: 64px; height: 20px; display: inline-block; }
+608:.login-sparkline .spark-path {
+609:    stroke: #9DD3FF;
+610:    stroke-width: 2;
+611:    fill: none;
+612:    stroke-linecap: round;
+613:    stroke-linejoin: round;
+614:    will-change: stroke-dashoffset;
+615:    transition: stroke-dashoffset 1200ms ease-in-out;
+616:}
+617:.login-sparkline .spark-bg { stroke: rgba(255,255,255,0.15); stroke-width: 2; fill: none; }
+
+==================================================
+5. CSS for the circular pie indicator
+File: static/css/style.css
+==================================================
+633:/* Solid pie using conic-gradient, filled sequentially via JS */
+634:.login-pie2 { width: 20px; height: 20px; border-radius: 50%; display: inline-block; background: conic-gradient(rgba(255,255,255,0.18) 0 360deg); box-shadow: 0 0 8px rgba(229,114,0,0.35); }

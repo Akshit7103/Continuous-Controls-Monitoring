@@ -1,0 +1,14 @@
+fastapi
+uvicorn[standard]
+python-jose[cryptography]
+python-multipart
+pandas
+numpy
+openpyxl
+fpdf2
+matplotlib
+aiofiles
+python-dotenv
+openai
+sqlparse
+xlrd

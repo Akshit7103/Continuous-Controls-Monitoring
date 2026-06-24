@@ -1,0 +1,56 @@
+# ─── Python ───
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+venv/
+env/
+ENV/
+.venv/
+
+# ─── Secrets / environment ───
+.env
+.env.*
+**/.env
+**/.env.*
+*.key
+*.pem
+# keep example templates (contain no real secrets)
+!.env.example
+!**/.env.example
+
+# ─── Local editor / Claude settings ───
+.claude/
+**/.claude/
+
+# ─── Databases (auto-created at runtime; may contain user accounts/data) ───
+*.db
+*.sqlite
+*.sqlite3
+
+# ─── Runtime upload storage (user-provided & client documents) ───
+uploads/*
+!uploads/.gitkeep
+backend/uploads/*
+!backend/uploads/.gitkeep
+backend/databases/*
+!backend/databases/.gitkeep
+SQL GPT/backend/uploads/*
+SQL GPT/backend/databases/*
+SQL GPT/backend/backend/
+
+# ─── Confidential / client data spreadsheets (upload at runtime instead) ───
+*.xlsx
+*.xls
+
+# ─── Generated reports / scratch artifacts ───
+*.pdf
+download.png
+
+# ─── OS junk ───
+.DS_Store
+Thumbs.db
